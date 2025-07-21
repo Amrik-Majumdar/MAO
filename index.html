@@ -816,39 +816,7 @@
         function connectWebSocket() {
             updateConnectionStatus('connecting');
             
-            socket = new WebSocket(serverUrl);
             
-            socket.onopen = () => {
-                updateConnectionStatus('connected');
-                console.log('WebSocket connected');
-            };
-            
-            socket.onclose = () => {
-                updateConnectionStatus('disconnected');
-                console.log('WebSocket disconnected');
-                // Try to reconnect after 5 seconds
-                setTimeout(connectWebSocket, 5000);
-            };
-            
-            socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                updateConnectionStatus('disconnected');
-            };
-            
-            socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                console.log('Received message:', data);
-                
-                if (data.type === 'error') {
-                    alert(data.message);
-                    return;
-                }
-                
-                // Handle different message types
-                if (handlers[data.type]) {
-                    handlers[data.type](data);
-                }
-            };
         }
 
         function updateConnectionStatus(status) {
@@ -860,19 +828,7 @@
               : 'Disconnected - Trying to reconnect...';
           }
         
-          socket.on('connect', () => {
-            updateConnectionStatus('connected');
-            console.log('Socket.IO connected');
-          });
-        
-          socket.on('disconnect', () => {
-            updateConnectionStatus('disconnected');
-            console.log('Socket.IO disconnected');
-          });
-        
-          socket.on('connect_error', (err) => {
-            updateConnectionStatus('disconnected');
-            console.error('Connection error:', err.message);
+          console.error('Connection error:', err.message);
           });
 
         function sendSocketMessage(type, data = {}) {
