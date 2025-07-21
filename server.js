@@ -10,11 +10,11 @@ const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
         origin: [
-        "https://amrik-majumdar.github.io",
-        "http://localhost:3000",
-        "http://127.0.0.1:5500" // For local development,
-        "https://mao-hois.onrender.com"
-    ],
+            "https://amrik-majumdar.github.io",
+            "http://localhost:3000",
+            "http://127.0.0.1:5500",
+            "https://mao-hois.onrender.com"
+        ],
         methods: ["GET", "POST"]
     }
 });
