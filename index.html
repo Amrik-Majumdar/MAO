@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <title>Mao - Online Multiplayer Card Game</title>
     <style>
         * {
@@ -803,7 +804,7 @@
         };
 
         // WebSocket connection
-        let socket;
+        let socket = io(serverUrl);
         const serverUrl = window.location.hostname === 'localhost' || 
                          window.location.hostname === '127.0.0.1' ?
                          'ws://localhost:3001' : 
