@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mao - Online Multiplayer Card Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .screen {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Home Screen */
+        .home-screen {
+            text-align: center;
+            padding: 50px 20px;
+        }
+
+        .title {
+            font-size: 4em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            background: linear-gradient(45deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradient 3s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.primary {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            border: none;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            z-index: 1000;
+        }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.8);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.8);
+        }
+
+        .connection-status.connecting {
+            background: rgba(255, 193, 7, 0.8);
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 25px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 1em;
+            backdrop-filter: blur(10px);
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #feca57;
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Lobby Screen */
+        .lobby-screen {
+            text-align: center;
+        }
+
+        .lobby-header {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .room-code {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #feca57;
+            margin-bottom: 10px;
+        }
+
+        .players-list {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .player-item:last-child {
+            border-bottom: none;
+        }
+
+        .host-badge {
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+
+        /* Game Screen */
+        .game-screen {
+            position: relative;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .turn-indicator {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #feca57;
+        }
+
+        .game-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .control-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .game-area {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+
+        .left-panel {
+            width: 250px;
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .penalty-log {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .penalty-item {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.9em;
+        }
+
+        .penalty-item:last-child {
+            border-bottom: none;
+        }
+
+        .play-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            position: relative;
+        }
+
+        .other-players {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+
+        .other-player {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            min-width: 120px;
+        }
+
+        .other-player.active-turn {
+            background: rgba(254, 202, 87, 0.3);
+            border: 2px solid #feca57;
+        }
+
+        .card-count {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #feca57;
+        }
+
+        .center-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .deck-pile {
+            width: 100px;
+            height: 140px;
+            background: #2c3e50;
+            border: 2px solid #34495e;
+            border-radius: 10px;
+            margin-right: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .deck-pile:hover {
+            transform: scale(1.05);
+        }
+
+        .discard-pile {
+            width: 100px;
+            height: 140px;
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .played-card {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2em;
+            position: absolute;
+            animation: cardPlay 0.5s ease-out;
+        }
+
+        @keyframes cardPlay {
+            from {
+                transform: translateY(-100px) rotate(10deg);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        .played-card.red {
+            background: linear-gradient(135deg, #ff6b6b, #ff8787);
+            color: white;
+        }
+
+        .played-card.black {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+        }
+
+        .current-player-area {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .player-hand {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            width: 60px;
+            height: 84px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .card:hover {
+            transform: translateY(-10px) scale(1.1);
+        }
+
+        .card.red {
+            background: linear-gradient(135deg, #ff6b6b, #ff8787);
+            color: white;
+        }
+
+        .card.black {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+        }
+
+        .card.playable {
+            box-shadow: 0 0 15px rgba(254, 202, 87, 0.6);
+            border: 2px solid #feca57;
+        }
+
+        .right-panel {
+            width: 250px;
+            background: rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-area {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .chat-message {
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .chat-message.system {
+            color: #feca57;
+            font-style: italic;
+        }
+
+        .chat-message.penalty {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .chat-input input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .mute-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(255, 107, 107, 0.3);
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .modal h3 {
+            margin-bottom: 20px;
+            color: #feca57;
+        }
+
+        .modal textarea {
+            width: 100%;
+            height: 120px;
+            padding: 15px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            resize: vertical;
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        /* Penalty Modal */
+        .penalty-modal select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .game-area {
+                flex-direction: column;
+            }
+            
+            .left-panel,
+            .right-panel {
+                width: 100%;
+                max-height: 200px;
+            }
+            
+            .other-players {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .card {
+                width: 50px;
+                height: 70px;
+                font-size: 0.8em;
+            }
+        }
+
+        /* Animations */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .penalty-shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .pulse {
+            animation: pulse 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Status Indicator -->
+    <div class="connection-status disconnected" id="connectionStatus">Disconnected</div>
+
+    <!-- Home Screen -->
+    <div class="screen active" id="homeScreen">
+        <div class="container">
+            <div class="home-screen">
+                <h1 class="title">MAO</h1>
+                <p class="subtitle">The card game where the only rule is that there are no rules... until someone wins.</p>
+                
+                <div class="menu-buttons">
+                    <button class="btn primary" onclick="showHostForm()">Host a Party</button>
+                    <button class="btn" onclick="showJoinForm()">Join a Party</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Host Form Screen -->
+    <div class="screen" id="hostScreen">
+        <div class="container">
+            <div class="home-screen">
+                <h2>Host a Party</h2>
+                <div class="menu-buttons">
+                    <div class="form-group">
+                        <label for="hostName">Your Name:</label>
+                        <input type="text" id="hostName" placeholder="Enter your name" maxlength="20">
+                    </div>
+                    <button class="btn primary" onclick="createParty()">Create Party</button>
+                    <button class="btn" onclick="showHome()">Back</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Form Screen -->
+    <div class="screen" id="joinScreen">
+        <div class="container">
+            <div class="home-screen">
+                <h2>Join a Party</h2>
+                <div class="menu-buttons">
+                    <div class="form-group">
+                        <label for="joinName">Your Name:</label>
+                        <input type="text" id="joinName" placeholder="Enter your name" maxlength="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="roomCode">Room Code:</label>
+                        <input type="text" id="roomCode" placeholder="Enter room code" maxlength="6">
+                    </div>
+                    <button class="btn primary" onclick="joinParty()">Join Party</button>
+                    <button class="btn" onclick="showHome()">Back</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div class="screen" id="lobbyScreen">
+        <div class="container">
+            <div class="lobby-screen">
+                <div class="lobby-header">
+                    <div class="room-code">Room: <span id="currentRoomCode"></span></div>
+                    <p>Share this code with friends to join!</p>
+                </div>
+
+                <div class="players-list">
+                    <h3>Players (<span id="playerCount">0</span>/10)</h3>
+                    <div id="playersContainer"></div>
+                </div>
+
+                <div class="menu-buttons">
+                    <button class="btn primary" id="startGameBtn" onclick="startGame()" style="display:none;">Start Game</button>
+                    <button class="btn" onclick="leaveLobby()">Leave Party</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div class="screen" id="gameScreen">
+        <div class="game-header">
+            <div class="turn-indicator" id="turnIndicator">Waiting...</div>
+            <div class="game-controls">
+                <button class="control-btn" id="pointOfOrderBtn" onclick="callPointOfOrder()">Point of Order</button>
+                <button class="control-btn" id="penaltyBtn" onclick="showPenaltyModal()">Give Penalty</button>
+                <button class="control-btn" onclick="showGameMenu()">Menu</button>
+            </div>
+        </div>
+
+        <div class="game-area">
+            <div class="left-panel">
+                <h4>Penalty Log</h4>
+                <div class="penalty-log" id="penaltyLog">
+                    <!-- Penalty messages will appear here -->
+                </div>
+            </div>
+
+            <div class="play-area">
+                <div class="other-players" id="otherPlayers">
+                    <!-- Other players will appear here -->
+                </div>
+
+                <div class="center-area">
+                    <div class="deck-pile" onclick="drawCard()">
+                        <div style="color: #feca57; font-size: 2em;">🂠</div>
+                    </div>
+                    <div class="discard-pile" id="discardPile">
+                        <div style="color: rgba(255,255,255,0.5); font-size: 1.2em;">Discard</div>
+                    </div>
+                </div>
+
+                <div class="current-player-area">
+                    <div class="player-hand" id="playerHand">
+                        <!-- Player cards will appear here -->
+                    </div>
+                    <div style="text-align: center;">
+                        <span id="handCount">0</span> cards in hand
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="chat-area">
+                    <div class="mute-indicator" id="muteIndicator">
+                        <span>🔇</span>
+                        <span>Chat muted during gameplay</span>
+                    </div>
+                    <div class="chat-messages" id="chatMessages">
+                        <!-- Chat messages will appear here -->
+                    </div>
+                    <div class="chat-input">
+                        <input type="text" id="chatInput" placeholder="Type message..." disabled>
+                        <button class="control-btn" onclick="sendChat()" id="sendChatBtn" disabled>Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Rule Modal -->
+    <div class="modal" id="newRuleModal" style="display: none;">
+        <div class="modal-content">
+            <h3>🎉 You Won! Create a New Rule</h3>
+            <p>Add a secret rule that other players must discover through gameplay:</p>
+            <textarea id="newRuleText" placeholder="Example: When playing a King, say 'Your Majesty' or When someone draws a card, they must knock twice"></textarea>
+            <div class="modal-buttons">
+                <button class="btn primary" onclick="submitNewRule()">Add Rule</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Penalty Modal -->
+    <div class="modal" id="penaltyModal" style="display: none;">
+        <div class="modal-content">
+            <h3>Give Penalty</h3>
+            <select id="penaltyPlayer">
+                <option value="">Select a player...</option>
+            </select>
+            <textarea id="penaltyReason" placeholder="Reason for penalty (e.g., 'Didn't say full name for Spade')"></textarea>
+            <div class="modal-buttons">
+                <button class="btn primary" onclick="givePenalty()">Give Penalty</button>
+                <button class="btn" onclick="closePenaltyModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        let gameState = {
+            screen: 'home',
+            playerName: '',
+            roomCode: '',
+            isHost: false,
+            players: [],
+            gameActive: false,
+            currentPlayer: '',
+            myTurn: false,
+            hand: [],
+            discardPile: [],
+            chatMuted: true,
+            pointOfOrderActive: false,
+            customRules: [],
+            penaltyLog: [],
+            declaredSuit: null
+        };
+
+        // WebSocket connection
+        let socket;
+        const serverUrl = window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1' ?
+                         'ws://localhost:3001' : 
+                         'wss://your-mao-server.herokuapp.com'; // Replace with your actual server URL
+
+        function connectWebSocket() {
+            updateConnectionStatus('connecting');
+            
+            socket = new WebSocket(serverUrl);
+            
+            socket.onopen = () => {
+                updateConnectionStatus('connected');
+                console.log('WebSocket connected');
+            };
+            
+            socket.onclose = () => {
+                updateConnectionStatus('disconnected');
+                console.log('WebSocket disconnected');
+                // Try to reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus('disconnected');
+            };
+            
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received message:', data);
+                
+                if (data.type === 'error') {
+                    alert(data.message);
+                    return;
+                }
+                
+                // Handle different message types
+                if (handlers[data.type]) {
+                    handlers[data.type](data);
+                }
+            };
+        }
+
+        function updateConnectionStatus(status) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.className = `connection-status ${status}`;
+            
+            switch(status) {
+                case 'connected':
+                    statusElement.textContent = 'Connected';
+                    break;
+                case 'disconnected':
+                    statusElement.textContent = 'Disconnected - Trying to reconnect...';
+                    break;
+                case 'connecting':
+                    statusElement.textContent = 'Connecting...';
+                    break;
+            }
+        }
+
+        function sendSocketMessage(type, data = {}) {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                console.error('WebSocket not connected');
+                return;
+            }
+            
+            const message = JSON.stringify({
+                type,
+                ...data
+            });
+            
+            socket.send(message);
+        }
+
+        // Message handlers
+        const handlers = {
+            'partyCreated': (data) => {
+                gameState.players = data.players;
+                gameState.roomCode = data.roomCode;
+                showLobby();
+            },
+            
+            'partyJoined': (data) => {
+                gameState.players = data.players;
+                gameState.roomCode = data.roomCode;
+                showLobby();
+            },
+            
+            'playerJoined': (data) => {
+                gameState.players = data.players;
+                updateLobby();
+                addChatMessage('system', `${data.playerName} joined the party`);
+            },
+            
+            'playerLeft': (data) => {
+                gameState.players = data.players;
+                updateLobby();
+                addChatMessage('system', `${data.playerName} left the party`);
+            },
+            
+            'gameStarted': (data) => {
+                gameState.hand = data.hand;
+                gameState.discardPile = data.discardPile;
+                gameState.currentPlayer = data.currentPlayer;
+                gameState.players = data.players;
+                gameState.gameActive = true;
+                gameState.myTurn = data.currentPlayer === gameState.playerName;
+                gameState.chatMuted = true;
+                gameState.pointOfOrderActive = false;
+                showGame();
+                updateGameState();
+                addChatMessage('system', 'The game has started!');
+            },
+            
+            'cardPlayed': (data) => {
+                gameState.discardPile = data.discardPile;
+                gameState.currentPlayer = data.nextPlayer;
+                gameState.myTurn = data.nextPlayer === gameState.playerName;
+                gameState.declaredSuit = data.declaredSuit || null;
+                updateGameState();
+                addChatMessage('system', `${data.player} played ${data.card.rank} of ${data.card.suit}`);
+                
+                if (data.declaredSuit) {
+                    addChatMessage('system', `New suit declared: ${data.declaredSuit}`);
+                }
+            },
+            
+            'cardDrawn': (data) => {
+                if (data.player === gameState.playerName) {
+                    gameState.hand = data.hand;
+                }
+                gameState.currentPlayer = data.nextPlayer;
+                gameState.myTurn = data.nextPlayer === gameState.playerName;
+                updateGameState();
+                addChatMessage('system', `${data.player} drew a card`);
+            },
+            
+            'penaltyGiven': (data) => {
+                gameState.penaltyLog.push(data);
+                updatePenaltyLog();
+                addChatMessage('penalty', `${data.giver} penalized ${data.receiver}: ${data.reason}`);
+                showPenaltyAnimation();
+            },
+            
+            'pointOfOrderCalled': (data) => {
+                gameState.pointOfOrderActive = true;
+                gameState.chatMuted = false;
+                updateChatState();
+                addChatMessage('system', `${data.player} called Point of Order`);
+            },
+            
+            'pointOfOrderEnded': (data) => {
+                gameState.pointOfOrderActive = false;
+                gameState.chatMuted = true;
+                updateChatState();
+                addChatMessage('system', 'Point taken.');
+            },
+            
+            'playerWon': (data) => {
+                if (data.winner === gameState.playerName) {
+                    showNewRuleModal();
+                }
+                addChatMessage('system', `🎉 ${data.winner} won the round!`);
+            },
+            
+            'newRuleAdded': (data) => {
+                gameState.customRules.push(data.rule);
+                addChatMessage('system', 'A new rule has been added to the game...');
+            },
+            
+            'handUpdate': (data) => {
+                if (data.player === gameState.playerName) {
+                    gameState.hand = data.hand;
+                    updatePlayerHand();
+                }
+            },
+            
+            'gameStateUpdate': (data) => {
+                gameState.players = data.players;
+                gameState.currentPlayer = data.currentPlayer;
+                gameState.myTurn = data.currentPlayer === gameState.playerName;
+                gameState.discardPile = data.discardPile;
+                gameState.chatMuted = data.chatMuted;
+                gameState.pointOfOrderActive = data.pointOfOrderActive;
+                gameState.declaredSuit = data.declaredSuit;
+                updateGameState();
+            }
+        };
+
+        // Screen Navigation Functions
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+            gameState.screen = screenId;
+        }
+
+        function showHome() {
+            showScreen('homeScreen');
+        }
+
+        function showHostForm() {
+            showScreen('hostScreen');
+            document.getElementById('hostName').focus();
+        }
+
+        function showJoinForm() {
+            showScreen('joinScreen');
+            document.getElementById('joinName').focus();
+        }
+
+        function showLobby() {
+            showScreen('lobbyScreen');
+            updateLobby();
+        }
+
+        function showGame() {
+            showScreen('gameScreen');
+        }
+
+        // Party Management Functions
+        function createParty() {
+            const name = document.getElementById('hostName').value.trim();
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            gameState.playerName = name;
+            gameState.isHost = true;
+            
+            sendSocketMessage('createParty', {
+                playerName: name
+            });
+        }
+
+        function joinParty() {
+            const name = document.getElementById('joinName').value.trim();
+            const code = document.getElementById('roomCode').value.trim().toUpperCase();
+            
+            if (!name || !code) {
+                alert('Please enter both your name and room code');
+                return;
+            }
+            
+            gameState.playerName = name;
+            gameState.isHost = false;
+            
+            sendSocketMessage('joinParty', {
+                playerName: name,
+                roomCode: code
+            });
+        }
+
+        function leaveLobby() {
+            sendSocketMessage('leaveLobby');
+            showHome();
+        }
+
+        function startGame() {
+            if (gameState.players.length < 2) {
+                alert('Need at least 2 players to start');
+                return;
+            }
+            
+            sendSocketMessage('startGame');
+        }
+
+        // Lobby Functions
+        function updateLobby() {
+            document.getElementById('currentRoomCode').textContent = gameState.roomCode;
+            document.getElementById('playerCount').textContent = gameState.players.length;
+            
+            const container = document.getElementById('playersContainer');
+            container.innerHTML = '';
+            
+            gameState.players.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-item';
+                playerDiv.innerHTML = `
+                    <span>${player.name}</span>
+                    ${player.isHost ? '<span class="host-badge">HOST</span>' : ''}
+                `;
+                container.appendChild(playerDiv);
+            });
+            
+            // Show start button only for host
+            const startBtn = document.getElementById('startGameBtn');
+            if (gameState.isHost && gameState.players.length >= 2) {
+                startBtn.style.display = 'block';
+            } else {
+                startBtn.style.display = 'none';
+            }
+        }
+
+        // Game Functions
+        function updateGameState() {
+            // Update turn indicator
+            const turnIndicator = document.getElementById('turnIndicator');
+            if (gameState.myTurn) {
+                turnIndicator.textContent = 'Your turn!';
+                turnIndicator.style.color = '#4CAF50';
+            } else {
+                turnIndicator.textContent = `${gameState.currentPlayer}'s turn`;
+                turnIndicator.style.color = '#feca57';
+            }
+            
+            // Update hand
+            updatePlayerHand();
+            
+            // Update discard pile
+            updateDiscardPile();
+            
+            // Update other players
+            updateOtherPlayers();
+            
+            // Update hand count
+            document.getElementById('handCount').textContent = gameState.hand.length;
+            
+            // Update control buttons
+            document.getElementById('pointOfOrderBtn').disabled = gameState.pointOfOrderActive;
+            document.getElementById('penaltyBtn').disabled = !gameState.myTurn;
+            
+            // Update chat state
+            updateChatState();
+        }
+
+        function updatePlayerHand() {
+            const handContainer = document.getElementById('playerHand');
+            handContainer.innerHTML = '';
+            
+            gameState.hand.forEach(card => {
+                const cardElement = createCardElement(card);
+                cardElement.onclick = () => playCard(card);
+                
+                // Check if card is playable
+                if (canPlayCard(card)) {
+                    cardElement.classList.add('playable');
+                }
+                
+                handContainer.appendChild(cardElement);
+            });
+        }
+
+        function createCardElement(card) {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = `card ${getCardColor(card.suit)}`;
+            
+            const suitSymbol = getSuitSymbol(card.suit);
+            cardDiv.innerHTML = `
+                <div>${card.rank}</div>
+                <div style="font-size: 1.2em;">${suitSymbol}</div>
+            `;
+            
+            return cardDiv;
+        }
+
+        function getCardColor(suit) {
+            return (suit === 'hearts' || suit === 'diamonds') ? 'red' : 'black';
+        }
+
+        function getSuitSymbol(suit) {
+            const symbols = {
+                'hearts': '♥',
+                'diamonds': '♦',
+                'clubs': '♣',
+                'spades': '♠'
+            };
+            return symbols[suit] || suit;
+        }
+
+        function canPlayCard(card) {
+            if (!gameState.myTurn || gameState.discardPile.length === 0) return false;
+            
+            const topCard = gameState.discardPile[0];
+            const effectiveSuit = gameState.declaredSuit || topCard.suit;
+            
+            return card.suit === effectiveSuit || 
+                   card.rank === topCard.rank || 
+                   card.rank === 'J'; // Jacks are wild
+        }
+
+        function playCard(card) {
+            if (!canPlayCard(card)) {
+                showPenaltyAnimation();
+                return;
+            }
+            
+            // Check for special card rules
+            if (!checkSpecialCardRules(card)) {
+                return;
+            }
+            
+            let specialData = {};
+            
+            // If playing a Jack, prompt for suit declaration
+            if (card.rank === 'J') {
+                const newSuit = prompt("Jack played! Declare new suit (hearts, diamonds, clubs, spades):");
+                if (!newSuit || !['hearts', 'diamonds', 'clubs', 'spades'].includes(newSuit.toLowerCase())) {
+                    giveSelfPenalty("Invalid suit declaration for Jack");
+                    return;
+                }
+                specialData.declaredSuit = newSuit.toLowerCase();
+            }
+            
+            sendSocketMessage('playCard', {
+                card: card,
+                specialData: specialData
+            });
+        }
+
+        function checkSpecialCardRules(card) {
+            // Spades rule: must say full name
+            if (card.suit === 'spades') {
+                const fullName = prompt(`Playing a Spade! Say the full name:`);
+                const expectedName = `${card.rank} of Spades`;
+                if (fullName?.toLowerCase() !== expectedName.toLowerCase()) {
+                    giveSelfPenalty("Didn't say full name for Spade");
+                    return false;
+                }
+            }
+            
+            // Seven rule: "Have a nice day"
+            if (card.rank === '7') {
+                const phrase = prompt("Seven played! Say the phrase:");
+                if (phrase?.toLowerCase() !== 'have a nice day') {
+                    giveSelfPenalty("Didn't say 'Have a nice day' for Seven");
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+        function drawCard() {
+            if (!gameState.myTurn) return;
+            
+            sendSocketMessage('drawCard');
+            showDrawAnimation();
+        }
+
+        function updateDiscardPile() {
+            const discardPile = document.getElementById('discardPile');
+            discardPile.innerHTML = '';
+            
+            if (gameState.discardPile.length > 0) {
+                const topCard = gameState.discardPile[0];
+                const cardElement = createCardElement(topCard);
+                cardElement.className += ' played-card';
+                discardPile.appendChild(cardElement);
+                
+                // Show declared suit if applicable
+                if (gameState.declaredSuit) {
+                    const suitIndicator = document.createElement('div');
+                    suitIndicator.style.position = 'absolute';
+                    suitIndicator.style.bottom = '-30px';
+                    suitIndicator.style.width = '100%';
+                    suitIndicator.style.textAlign = 'center';
+                    suitIndicator.style.fontSize = '0.8em';
+                    suitIndicator.style.color = '#feca57';
+                    suitIndicator.textContent = `Suit: ${gameState.declaredSuit}`;
+                    discardPile.appendChild(suitIndicator);
+                }
+            } else {
+                discardPile.innerHTML = '<div style="color: rgba(255,255,255,0.5); font-size: 1.2em;">Discard</div>';
+            }
+        }
+
+        function updateOtherPlayers() {
+            const container = document.getElementById('otherPlayers');
+            container.innerHTML = '';
+            
+            gameState.players.forEach(player => {
+                if (player.name !== gameState.playerName) {
+                    const playerDiv = document.createElement('div');
+                    playerDiv.className = 'other-player';
+                    
+                    if (player.name === gameState.currentPlayer) {
+                        playerDiv.classList.add('active-turn');
+                    }
+                    
+                    playerDiv.innerHTML = `
+                        <div>${player.name}</div>
+                        <div class="card-count">${player.cardCount || 0}</div>
+                        <div style="font-size: 0.8em;">cards</div>
+                    `;
+                    
+                    container.appendChild(playerDiv);
+                }
+            });
+        }
+
+        // Chat Functions
+        function updateChatState() {
+            const muteIndicator = document.getElementById('muteIndicator');
+            const chatInput = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendChatBtn');
+            
+            if (gameState.chatMuted && !gameState.pointOfOrderActive) {
+                muteIndicator.style.display = 'flex';
+                chatInput.disabled = true;
+                sendBtn.disabled = true;
+                chatInput.placeholder = 'Chat muted during gameplay';
+            } else {
+                muteIndicator.style.display = 'none';
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                chatInput.placeholder = gameState.pointOfOrderActive ? 
+                    'Point of Order active - third person only' : 'Type message...';
+            }
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Check Point of Order rules
+            if (gameState.pointOfOrderActive) {
+                if (message.toLowerCase().includes('point of order')) {
+                    giveSelfPenalty("Said 'Point of Order' during Point of Order");
+                    input.value = '';
+                    return;
+                }
+                
+                if (message.toLowerCase() === 'point taken') {
+                    sendSocketMessage('endPointOfOrder');
+                    input.value = '';
+                    return;
+                }
+                
+                // Check if using first person (simple check)
+                if (message.toLowerCase().includes(' i ') || message.toLowerCase().startsWith('i ')) {
+                    giveSelfPenalty("Used first person during Point of Order");
+                    input.value = '';
+                    return;
+                }
+            }
+            
+            sendSocketMessage('chatMessage', {
+                message: message
+            });
+            
+            input.value = '';
+        }
+
+        function addChatMessage(type, message) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${type}`;
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Penalty System
+        function showPenaltyModal() {
+            const modal = document.getElementById('penaltyModal');
+            const playerSelect = document.getElementById('penaltyPlayer');
+            
+            // Populate player options
+            playerSelect.innerHTML = '<option value="">Select a player...</option>';
+            gameState.players.forEach(player => {
+                if (player.name !== gameState.playerName) {
+                    const option = document.createElement('option');
+                    option.value = player.name;
+                    option.textContent = player.name;
+                    playerSelect.appendChild(option);
+                }
+            });
+            
+            modal.style.display = 'flex';
+        }
+
+        function closePenaltyModal() {
+            const modal = document.getElementById('penaltyModal');
+            modal.style.display = 'none';
+            document.getElementById('penaltyPlayer').value = '';
+            document.getElementById('penaltyReason').value = '';
+        }
+
+        function givePenalty() {
+            const player = document.getElementById('penaltyPlayer').value;
+            const reason = document.getElementById('penaltyReason').value.trim();
+            
+            if (!player || !reason) {
+                alert('Please select a player and provide a reason');
+                return;
+            }
+            
+            sendSocketMessage('givePenalty', {
+                receiver: player,
+                reason: reason
+            });
+            
+            closePenaltyModal();
+        }
+
+        function giveSelfPenalty(reason) {
+            sendSocketMessage('givePenalty', {
+                receiver: gameState.playerName,
+                reason: reason
+            });
+        }
+
+        function updatePenaltyLog() {
+            const penaltyLog = document.getElementById('penaltyLog');
+            penaltyLog.innerHTML = '';
+            
+            gameState.penaltyLog.slice(-10).forEach(penalty => {
+                const penaltyDiv = document.createElement('div');
+                penaltyDiv.className = 'penalty-item';
+                penaltyDiv.innerHTML = `
+                    <strong>${penalty.receiver}</strong><br>
+                    <small>${penalty.reason}</small>
+                `;
+                penaltyLog.appendChild(penaltyDiv);
+            });
+        }
+
+        // Point of Order
+        function callPointOfOrder() {
+            if (gameState.pointOfOrderActive) return;
+            
+            sendSocketMessage('callPointOfOrder');
+        }
+
+        // New Rule System
+        function showNewRuleModal() {
+            const modal = document.getElementById('newRuleModal');
+            modal.style.display = 'flex';
+            document.getElementById('newRuleText').focus();
+        }
+
+        function submitNewRule() {
+            const ruleText = document.getElementById('newRuleText').value.trim();
+            
+            if (!ruleText) {
+                alert('Please enter a rule');
+                return;
+            }
+            
+            sendSocketMessage('addNewRule', {
+                rule: ruleText
+            });
+            
+            document.getElementById('newRuleModal').style.display = 'none';
+            document.getElementById('newRuleText').value = '';
+            
+            alert('Your rule has been added! Other players must discover it through gameplay.');
+        }
+
+        // Animations
+        function showPenaltyAnimation() {
+            document.getElementById('playerHand').classList.add('penalty-shake');
+            setTimeout(() => {
+                document.getElementById('playerHand').classList.remove('penalty-shake');
+            }, 500);
+        }
+
+        function showDrawAnimation() {
+            document.querySelector('.deck-pile').classList.add('pulse');
+            setTimeout(() => {
+                document.querySelector('.deck-pile').classList.remove('pulse');
+            }, 1000);
+        }
+
+        // Game Menu
+        function showGameMenu() {
+            const options = [
+                'Export Game Log',
+                'View Custom Rules',
+                'Leave Game'
+            ];
+            
+            const choice = prompt(`Game Menu:\n${options.map((opt, i) => `${i+1}. ${opt}`).join('\n')}\n\nEnter number:`);
+            
+            switch(choice) {
+                case '1':
+                    exportGameLog();
+                    break;
+                case '2':
+                    viewCustomRules();
+                    break;
+                case '3':
+                    if (confirm('Are you sure you want to leave the game?')) {
+                        leaveGame();
+                    }
+                    break;
+            }
+        }
+
+        function exportGameLog() {
+            const log = {
+                roomCode: gameState.roomCode,
+                players: gameState.players,
+                penaltyLog: gameState.penaltyLog,
+                customRules: gameState.customRules.length
+            };
+            
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(log, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `mao-game-${gameState.roomCode}.json`);
+            downloadAnchor.click();
+        }
+
+        function viewCustomRules() {
+            if (gameState.customRules.length === 0) {
+                alert('No custom rules have been added yet.');
+            } else {
+                alert(`Custom Rules in Play: ${gameState.customRules.length}\n\n(Rules are hidden until you discover them through gameplay!)`);
+            }
+        }
+
+        function leaveGame() {
+            sendSocketMessage('leaveGame');
+            showHome();
+        }
+
+        // Event Listeners
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const activeElement = document.activeElement;
+                
+                if (activeElement.id === 'hostName') {
+                    createParty();
+                } else if (activeElement.id === 'joinName' || activeElement.id === 'roomCode') {
+                    joinParty();
+                } else if (activeElement.id === 'chatInput') {
+                    sendChat();
+                }
+            }
+        });
+
+        // Initialize the game
+        connectWebSocket();
+        updateChatState();
+    </script>
+</body>
+</html>
