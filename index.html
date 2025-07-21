@@ -804,11 +804,14 @@
         };
 
         // WebSocket connection
-        let socket = io(serverUrl);
-        const serverUrl = window.location.hostname === 'localhost' || 
-                         window.location.hostname === '127.0.0.1' ?
-                         'ws://localhost:3001' : 
-                         'https://mao-hois.onrender.com';
+        let socket = io(serverUrl, {
+            transports: ['websocket'],
+            upgrade: false
+        });
+        const serverUrl = window.location.hostname === 'localhost' ||
+                   window.location.hostname === '127.0.0.1'
+                   ? 'http://localhost:3001'
+                   : 'https://mao-hois.onrender.com';
 
         function connectWebSocket() {
             updateConnectionStatus('connecting');
@@ -851,148 +854,59 @@
         function updateConnectionStatus(status) {
             const statusElement = document.getElementById('connectionStatus');
             statusElement.className = `connection-status ${status}`;
-            
-            switch(status) {
-                case 'connected':
-                    statusElement.textContent = 'Connected';
-                    break;
-                case 'disconnected':
-                    statusElement.textContent = 'Disconnected - Trying to reconnect...';
-                    break;
-                case 'connecting':
-                    statusElement.textContent = 'Connecting...';
-                    break;
-            }
-        }
+            statusElement.textContent =
+              status === 'connected' ? 'Connected'
+              : status === 'connecting' ? 'Connecting...'
+              : 'Disconnected - Trying to reconnect...';
+          }
+        
+          socket.on('connect', () => {
+            updateConnectionStatus('connected');
+            console.log('Socket.IO connected');
+          });
+        
+          socket.on('disconnect', () => {
+            updateConnectionStatus('disconnected');
+            console.log('Socket.IO disconnected');
+          });
+        
+          socket.on('connect_error', (err) => {
+            updateConnectionStatus('disconnected');
+            console.error('Connection error:', err.message);
+          });
 
         function sendSocketMessage(type, data = {}) {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-                console.error('WebSocket not connected');
-                return;
+            if (!socket || !socket.connected) {
+              console.error('Socket.IO not connected');
+              return;
             }
-            
-            const message = JSON.stringify({
-                type,
-                ...data
-            });
-            
-            socket.send(message);
-        }
+            socket.emit(type, data);
+          }
 
         // Message handlers
         const handlers = {
-            'partyCreated': (data) => {
-                gameState.players = data.players;
-                gameState.roomCode = data.roomCode;
-                showLobby();
-            },
-            
-            'partyJoined': (data) => {
-                gameState.players = data.players;
-                gameState.roomCode = data.roomCode;
-                showLobby();
-            },
-            
-            'playerJoined': (data) => {
-                gameState.players = data.players;
-                updateLobby();
-                addChatMessage('system', `${data.playerName} joined the party`);
-            },
-            
-            'playerLeft': (data) => {
-                gameState.players = data.players;
-                updateLobby();
-                addChatMessage('system', `${data.playerName} left the party`);
-            },
-            
-            'gameStarted': (data) => {
-                gameState.hand = data.hand;
-                gameState.discardPile = data.discardPile;
-                gameState.currentPlayer = data.currentPlayer;
-                gameState.players = data.players;
-                gameState.gameActive = true;
-                gameState.myTurn = data.currentPlayer === gameState.playerName;
-                gameState.chatMuted = true;
-                gameState.pointOfOrderActive = false;
-                showGame();
-                updateGameState();
-                addChatMessage('system', 'The game has started!');
-            },
-            
-            'cardPlayed': (data) => {
-                gameState.discardPile = data.discardPile;
-                gameState.currentPlayer = data.nextPlayer;
-                gameState.myTurn = data.nextPlayer === gameState.playerName;
-                gameState.declaredSuit = data.declaredSuit || null;
-                updateGameState();
-                addChatMessage('system', `${data.player} played ${data.card.rank} of ${data.card.suit}`);
-                
-                if (data.declaredSuit) {
-                    addChatMessage('system', `New suit declared: ${data.declaredSuit}`);
-                }
-            },
-            
-            'cardDrawn': (data) => {
-                if (data.player === gameState.playerName) {
-                    gameState.hand = data.hand;
-                }
-                gameState.currentPlayer = data.nextPlayer;
-                gameState.myTurn = data.nextPlayer === gameState.playerName;
-                updateGameState();
-                addChatMessage('system', `${data.player} drew a card`);
-            },
-            
-            'penaltyGiven': (data) => {
-                gameState.penaltyLog.push(data);
-                updatePenaltyLog();
-                addChatMessage('penalty', `${data.giver} penalized ${data.receiver}: ${data.reason}`);
-                showPenaltyAnimation();
-            },
-            
-            'pointOfOrderCalled': (data) => {
-                gameState.pointOfOrderActive = true;
-                gameState.chatMuted = false;
-                updateChatState();
-                addChatMessage('system', `${data.player} called Point of Order`);
-            },
-            
-            'pointOfOrderEnded': (data) => {
-                gameState.pointOfOrderActive = false;
-                gameState.chatMuted = true;
-                updateChatState();
-                addChatMessage('system', 'Point taken.');
-            },
-            
-            'playerWon': (data) => {
-                if (data.winner === gameState.playerName) {
-                    showNewRuleModal();
-                }
-                addChatMessage('system', `🎉 ${data.winner} won the round!`);
-            },
-            
-            'newRuleAdded': (data) => {
-                gameState.customRules.push(data.rule);
-                addChatMessage('system', 'A new rule has been added to the game...');
-            },
-            
-            'handUpdate': (data) => {
-                if (data.player === gameState.playerName) {
-                    gameState.hand = data.hand;
-                    updatePlayerHand();
-                }
-            },
-            
-            'gameStateUpdate': (data) => {
-                gameState.players = data.players;
-                gameState.currentPlayer = data.currentPlayer;
-                gameState.myTurn = data.currentPlayer === gameState.playerName;
-                gameState.discardPile = data.discardPile;
-                gameState.chatMuted = data.chatMuted;
-                gameState.pointOfOrderActive = data.pointOfOrderActive;
-                gameState.declaredSuit = data.declaredSuit;
-                updateGameState();
-            }
-        };
+            'partyCreated': (data) => showLobbyWith(data),
+            'partyJoined': (data) => showLobbyWith(data),
+            'playerJoined': (data) => updateLobbyWith(data, 'joined'),
+            'playerLeft': (data) => updateLobbyWith(data, 'left'),
+            'gameStarted': (data) => startGameWith(data),
+            'cardPlayed': (data) => updateCardPlay(data),
+            'cardDrawn': (data) => updateCardDraw(data),
+            'penaltyGiven': (data) => updatePenalty(data),
+            'pointOfOrderCalled': (data) => activatePointOfOrder(data),
+            'pointOfOrderEnded': (data) => endPointOfOrder(data),
+            'playerWon': (data) => handleWin(data),
+            'newRuleAdded': (data) => addCustomRule(data),
+            'handUpdate': (data) => updateHand(data),
+            'gameStateUpdate': (data) => refreshGameState(data)
+          };
+
+        Object.entries(handlers).forEach(([event, handler]) => {
+            socket.on(event, (data) => {
+              console.log('Received:', event, data);
+              handler(data);
+            });
+          });
 
         // Screen Navigation Functions
         function showScreen(screenId) {
