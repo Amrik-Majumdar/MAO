@@ -618,7 +618,7 @@
 </head>
 <body>
     <!-- Connection Status Indicator -->
-    <div class="connection-status disconnected" id="connectionStatus">Disconnected</div>
+    <div class="connection-status disconnected" id="connectionStatus">Connecting...</div>
 
     <!-- Home Screen -->
     <div class="screen active" id="homeScreen">
@@ -803,20 +803,186 @@
             declaredSuit: null
         };
 
-        // WebSocket connection
-        let socket = io(serverUrl, {
-            transports: ['websocket'],
-            upgrade: false
-        });
+        // Determine server URL
         const serverUrl = window.location.hostname === 'localhost' ||
                    window.location.hostname === '127.0.0.1'
                    ? 'http://localhost:3001'
                    : 'https://mao-hois.onrender.com';
 
+        // WebSocket connection
+        let socket = null;
+
         function connectWebSocket() {
+            console.log('Connecting to:', serverUrl);
             updateConnectionStatus('connecting');
             
-            
+            socket = io(serverUrl, {
+                transports: ['polling', 'websocket'],
+                upgrade: true,
+                timeout: 20000,
+                forceNew: true,
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5,
+                maxReconnectionAttempts: 10
+            });
+
+            // Connection event handlers
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                updateConnectionStatus('connected');
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('Disconnected from server:', reason);
+                updateConnectionStatus('disconnected');
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                updateConnectionStatus('disconnected');
+            });
+
+            socket.on('reconnect', (attemptNumber) => {
+                console.log('Reconnected after', attemptNumber, 'attempts');
+                updateConnectionStatus('connected');
+            });
+
+            socket.on('reconnect_attempt', (attemptNumber) => {
+                console.log('Reconnection attempt', attemptNumber);
+                updateConnectionStatus('connecting');
+            });
+
+            socket.on('error', (data) => {
+                console.error('Socket error:', data);
+                alert(data.message || 'An error occurred');
+            });
+
+            setupGameEventHandlers();
+        }
+
+        function setupGameEventHandlers() {
+            // Game event handlers
+            socket.on('partyCreated', (data) => {
+                console.log('Party created:', data);
+                gameState.roomCode = data.roomCode;
+                gameState.players = data.players;
+                gameState.isHost = true;
+                showLobby();
+            });
+
+            socket.on('partyJoined', (data) => {
+                console.log('Joined party:', data);
+                gameState.roomCode = data.roomCode;
+                gameState.players = data.players;
+                showLobby();
+            });
+
+            socket.on('playerJoined', (data) => {
+                console.log('Player joined:', data);
+                gameState.players = data.players;
+                updateLobby();
+            });
+
+            socket.on('playerLeft', (data) => {
+                console.log('Player left:', data);
+                gameState.players = data.players;
+                updateLobby();
+            });
+
+            socket.on('gameStarted', (data) => {
+                console.log('Game started:', data);
+                gameState.hand = data.hand || [];
+                gameState.gameActive = true;
+                gameState.currentPlayer = data.currentPlayer;
+                gameState.discardPile = data.discardPile || [];
+                gameState.players = data.players || [];
+                gameState.myTurn = data.currentPlayer === gameState.playerName;
+                showGame();
+                updateGameState();
+            });
+
+            socket.on('cardPlayed', (data) => {
+                console.log('Card played:', data);
+                if (data.gameState) {
+                    updateFromGameState(data.gameState);
+                }
+                updateGameState();
+            });
+
+            socket.on('handUpdate', (data) => {
+                console.log('Hand updated:', data);
+                gameState.hand = data.hand || [];
+                updateGameState();
+            });
+
+            socket.on('cardDrawn', (data) => {
+                console.log('Card drawn:', data);
+                gameState.hand = data.hand || [];
+                updateGameState();
+            });
+
+            socket.on('playerDrewCard', (data) => {
+                console.log('Player drew card:', data);
+                if (data.gameState) {
+                    updateFromGameState(data.gameState);
+                }
+                updateGameState();
+            });
+
+            socket.on('penaltyGiven', (data) => {
+                console.log('Penalty given:', data);
+                gameState.penaltyLog.push(data);
+                updatePenaltyLog();
+                addChatMessage('penalty', `${data.receiver} got penalty: ${data.reason}`);
+            });
+
+            socket.on('pointOfOrderCalled', (data) => {
+                console.log('Point of Order called:', data);
+                if (data.gameState) {
+                    updateFromGameState(data.gameState);
+                }
+                updateGameState();
+                addChatMessage('system', `${data.player} called Point of Order!`);
+            });
+
+            socket.on('pointOfOrderEnded', (data) => {
+                console.log('Point of Order ended:', data);
+                if (data.gameState) {
+                    updateFromGameState(data.gameState);
+                }
+                updateGameState();
+                addChatMessage('system', 'Point of Order ended');
+            });
+
+            socket.on('playerWon', (data) => {
+                console.log('Player won:', data);
+                alert(`${data.winner} won the game!`);
+                if (data.winner === gameState.playerName) {
+                    showNewRuleModal();
+                }
+            });
+
+            socket.on('newRuleAdded', (data) => {
+                console.log('New rule added:', data);
+                addChatMessage('system', `${data.creator} added a new rule! (${data.ruleCount} total rules)`);
+            });
+
+            socket.on('chatMessage', (data) => {
+                console.log('Chat message:', data);
+                addChatMessage('player', `${data.player}: ${data.message}`);
+            });
+        }
+
+        function updateFromGameState(gameStateData) {
+            gameState.currentPlayer = gameStateData.currentPlayer;
+            gameState.myTurn = gameStateData.currentPlayer === gameState.playerName;
+            gameState.discardPile = gameStateData.discardPile || [];
+            gameState.players = gameStateData.players || [];
+            gameState.pointOfOrderActive = gameStateData.pointOfOrderActive || false;
+            gameState.chatMuted = gameStateData.chatMuted !== undefined ? gameStateData.chatMuted : true;
+            gameState.declaredSuit = gameStateData.declaredSuit;
+            gameState.penaltyLog = gameStateData.penaltyLog || [];
         }
 
         function updateConnectionStatus(status) {
@@ -826,43 +992,16 @@
               status === 'connected' ? 'Connected'
               : status === 'connecting' ? 'Connecting...'
               : 'Disconnected - Trying to reconnect...';
-          }
-        
-          console.error('Connection error:', err.message);
-          });
+        }
 
         function sendSocketMessage(type, data = {}) {
             if (!socket || !socket.connected) {
               console.error('Socket.IO not connected');
               return;
             }
+            console.log('Sending:', type, data);
             socket.emit(type, data);
-          }
-
-        // Message handlers
-        const handlers = {
-            'partyCreated': (data) => showLobbyWith(data),
-            'partyJoined': (data) => showLobbyWith(data),
-            'playerJoined': (data) => updateLobbyWith(data, 'joined'),
-            'playerLeft': (data) => updateLobbyWith(data, 'left'),
-            'gameStarted': (data) => startGameWith(data),
-            'cardPlayed': (data) => updateCardPlay(data),
-            'cardDrawn': (data) => updateCardDraw(data),
-            'penaltyGiven': (data) => updatePenalty(data),
-            'pointOfOrderCalled': (data) => activatePointOfOrder(data),
-            'pointOfOrderEnded': (data) => endPointOfOrder(data),
-            'playerWon': (data) => handleWin(data),
-            'newRuleAdded': (data) => addCustomRule(data),
-            'handUpdate': (data) => updateHand(data),
-            'gameStateUpdate': (data) => refreshGameState(data)
-          };
-
-        Object.entries(handlers).forEach(([event, handler]) => {
-            socket.on(event, (data) => {
-              console.log('Received:', event, data);
-              handler(data);
-            });
-          });
+        }
 
         // Screen Navigation Functions
         function showScreen(screenId) {
@@ -996,15 +1135,23 @@
             document.getElementById('handCount').textContent = gameState.hand.length;
             
             // Update control buttons
-            document.getElementById('pointOfOrderBtn').disabled = gameState.pointOfOrderActive;
-            document.getElementById('penaltyBtn').disabled = !gameState.myTurn;
+            const pointOfOrderBtn = document.getElementById('pointOfOrderBtn');
+            const penaltyBtn = document.getElementById('penaltyBtn');
+            
+            if (pointOfOrderBtn) pointOfOrderBtn.disabled = gameState.pointOfOrderActive;
+            if (penaltyBtn) penaltyBtn.disabled = !gameState.myTurn && !gameState.pointOfOrderActive;
             
             // Update chat state
             updateChatState();
+            
+            // Update penalty log
+            updatePenaltyLog();
         }
 
         function updatePlayerHand() {
             const handContainer = document.getElementById('playerHand');
+            if (!handContainer) return;
+            
             handContainer.innerHTML = '';
             
             gameState.hand.forEach(card => {
@@ -1119,6 +1266,8 @@
 
         function updateDiscardPile() {
             const discardPile = document.getElementById('discardPile');
+            if (!discardPile) return;
+            
             discardPile.innerHTML = '';
             
             if (gameState.discardPile.length > 0) {
@@ -1146,6 +1295,8 @@
 
         function updateOtherPlayers() {
             const container = document.getElementById('otherPlayers');
+            if (!container) return;
+            
             container.innerHTML = '';
             
             gameState.players.forEach(player => {
@@ -1173,6 +1324,8 @@
             const muteIndicator = document.getElementById('muteIndicator');
             const chatInput = document.getElementById('chatInput');
             const sendBtn = document.getElementById('sendChatBtn');
+            
+            if (!muteIndicator || !chatInput || !sendBtn) return;
             
             if (gameState.chatMuted && !gameState.pointOfOrderActive) {
                 muteIndicator.style.display = 'flex';
@@ -1217,6 +1370,7 @@
             }
             
             sendSocketMessage('chatMessage', {
+                player: gameState.playerName,
                 message: message
             });
             
@@ -1225,6 +1379,8 @@
 
         function addChatMessage(type, message) {
             const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+            
             const messageDiv = document.createElement('div');
             messageDiv.className = `chat-message ${type}`;
             messageDiv.textContent = message;
@@ -1236,6 +1392,8 @@
         function showPenaltyModal() {
             const modal = document.getElementById('penaltyModal');
             const playerSelect = document.getElementById('penaltyPlayer');
+            
+            if (!modal || !playerSelect) return;
             
             // Populate player options
             playerSelect.innerHTML = '<option value="">Select a player...</option>';
@@ -1253,14 +1411,18 @@
 
         function closePenaltyModal() {
             const modal = document.getElementById('penaltyModal');
+            if (!modal) return;
+            
             modal.style.display = 'none';
-            document.getElementById('penaltyPlayer').value = '';
-            document.getElementById('penaltyReason').value = '';
+            const playerSelect = document.getElementById('penaltyPlayer');
+            const reasonTextarea = document.getElementById('penaltyReason');
+            if (playerSelect) playerSelect.value = '';
+            if (reasonTextarea) reasonTextarea.value = '';
         }
 
         function givePenalty() {
-            const player = document.getElementById('penaltyPlayer').value;
-            const reason = document.getElementById('penaltyReason').value.trim();
+            const player = document.getElementById('penaltyPlayer')?.value;
+            const reason = document.getElementById('penaltyReason')?.value.trim();
             
             if (!player || !reason) {
                 alert('Please select a player and provide a reason');
@@ -1268,6 +1430,7 @@
             }
             
             sendSocketMessage('givePenalty', {
+                giver: gameState.playerName,
                 receiver: player,
                 reason: reason
             });
@@ -1277,6 +1440,7 @@
 
         function giveSelfPenalty(reason) {
             sendSocketMessage('givePenalty', {
+                giver: gameState.playerName,
                 receiver: gameState.playerName,
                 reason: reason
             });
@@ -1284,6 +1448,8 @@
 
         function updatePenaltyLog() {
             const penaltyLog = document.getElementById('penaltyLog');
+            if (!penaltyLog) return;
+            
             penaltyLog.innerHTML = '';
             
             gameState.penaltyLog.slice(-10).forEach(penalty => {
@@ -1301,18 +1467,23 @@
         function callPointOfOrder() {
             if (gameState.pointOfOrderActive) return;
             
-            sendSocketMessage('callPointOfOrder');
+            sendSocketMessage('callPointOfOrder', {
+                player: gameState.playerName
+            });
         }
 
         // New Rule System
         function showNewRuleModal() {
             const modal = document.getElementById('newRuleModal');
+            if (!modal) return;
+            
             modal.style.display = 'flex';
-            document.getElementById('newRuleText').focus();
+            const textarea = document.getElementById('newRuleText');
+            if (textarea) textarea.focus();
         }
 
         function submitNewRule() {
-            const ruleText = document.getElementById('newRuleText').value.trim();
+            const ruleText = document.getElementById('newRuleText')?.value.trim();
             
             if (!ruleText) {
                 alert('Please enter a rule');
@@ -1320,28 +1491,37 @@
             }
             
             sendSocketMessage('addNewRule', {
+                creator: gameState.playerName,
                 rule: ruleText
             });
             
-            document.getElementById('newRuleModal').style.display = 'none';
-            document.getElementById('newRuleText').value = '';
+            const modal = document.getElementById('newRuleModal');
+            const textarea = document.getElementById('newRuleText');
+            if (modal) modal.style.display = 'none';
+            if (textarea) textarea.value = '';
             
             alert('Your rule has been added! Other players must discover it through gameplay.');
         }
 
         // Animations
         function showPenaltyAnimation() {
-            document.getElementById('playerHand').classList.add('penalty-shake');
-            setTimeout(() => {
-                document.getElementById('playerHand').classList.remove('penalty-shake');
-            }, 500);
+            const playerHand = document.getElementById('playerHand');
+            if (playerHand) {
+                playerHand.classList.add('penalty-shake');
+                setTimeout(() => {
+                    playerHand.classList.remove('penalty-shake');
+                }, 500);
+            }
         }
 
         function showDrawAnimation() {
-            document.querySelector('.deck-pile').classList.add('pulse');
-            setTimeout(() => {
-                document.querySelector('.deck-pile').classList.remove('pulse');
-            }, 1000);
+            const deckPile = document.querySelector('.deck-pile');
+            if (deckPile) {
+                deckPile.classList.add('pulse');
+                setTimeout(() => {
+                    deckPile.classList.remove('pulse');
+                }, 1000);
+            }
         }
 
         // Game Menu
@@ -1413,8 +1593,10 @@
         });
 
         // Initialize the game
+        document.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
+            updateChatState();
+        });
+
+        // Auto-connect when the page loads
         connectWebSocket();
-        updateChatState();
-    </script>
-</body>
-</html>
